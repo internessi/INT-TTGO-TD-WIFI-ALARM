@@ -39,33 +39,50 @@ void setup()
     Serial.begin(115200);
     Serial.println("Start");
 
-    if(!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)){
-      Serial.println("SPIFFS Mount Failed");
-      return;
-    } else {
-      Serial.println("SPIFFS Mount OK");     
-    }
-    
-    pinMode(ADC_EN, OUTPUT);
-    digitalWrite(ADC_EN, HIGH);
-
     tft.init();
     tft.setRotation(1);
     tft.fillScreen(TFT_BLACK);
-    tft.setTextSize(2);
     tft.setTextColor(TFT_GREEN);
     tft.setCursor(0, 0);
     tft.setTextDatum(MC_DATUM);
     tft.setTextSize(2);
-
-    if (TFT_BL > 0) {                           // TFT_BL has been set in the TFT_eSPI library in the User Setup file TTGO_T_Display.h
-        pinMode(TFT_BL, OUTPUT);                // Set backlight pin to output mode
-        digitalWrite(TFT_BL, TFT_BACKLIGHT_ON); // Turn backlight on. TFT_BACKLIGHT_ON has been set in the TFT_eSPI library in the User Setup file TTGO_T_Display.h
+    if (TFT_BL > 0) {               
+        pinMode(TFT_BL, OUTPUT);                
+        digitalWrite(TFT_BL, TFT_BACKLIGHT_ON);
     }
-
+    
     tft.setSwapBytes(true);
     tft.pushImage(0, 0,  240, 135, ttgo);
     espDelay(2000);
+    
+    display_text("Start",3,800);
+
+    if(!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)){
+      display_text("SPIFFS Failed",3,800);
+      return;
+    } else {
+      display_text("SPIFFS OK",3,800);    
+    }
+
+    if(!SPIFFS.exists("/ap.csv")){
+      writeFile(SPIFFS, "/ap.csv", "ID;NAME\r\n");
+      display_text("AP Init",3,800); 
+    } else {
+      display_text("AP OK",3,800);    
+    }
+
+    if(!SPIFFS.exists("/aps.csv")){
+      writeFile(SPIFFS, "/aps.csv", "ID;NAME\r\n");
+      display_text("Suche Init",3,800); 
+    } else {
+      display_text("Suche OK",3,800);    
+    }
+
+    read_spiffs_to_TFT(SPIFFS, "/aps.csv");
+
+    
+    pinMode(ADC_EN, OUTPUT);
+    digitalWrite(ADC_EN, HIGH);
 
     button_init();
 
@@ -98,6 +115,36 @@ void loop()
     }
     button_loop();
 }
+
+// START read_spiffs_to_TFT()
+void read_spiffs_to_TFT(fs::FS &fs, const char * path){
+    int i;
+    Serial.printf("Start Printout");
+    File file = fs.open(path);
+    if(!file || file.isDirectory()){
+        Serial.println("- failed");
+        return;
+    }
+    while(file.available()){
+    i= file.readBytesUntil(';', buff, sizeof(buff));
+      buff[i] = 0;
+      display_text(buff,2,400);     
+      i= file.readBytesUntil('\n', buff, sizeof(buff));
+      buff[i] = 0;
+      display_text(buff,2,400);  
+    }
+} // END read_spiffs_to_sram()
+
+// START  display_text()
+void display_text(String text, int tsize, int ttime) {
+  tft.fillScreen(TFT_BLACK);
+  espDelay(200);
+  tft.setTextDatum(MC_DATUM);
+  tft.setTextSize(tsize);
+  tft.drawString(text, tft.width() / 2, tft.height() / 2 - 16);
+  espDelay(ttime);
+  tft.setTextSize(2);
+} // END  display_text()
 
 //! Long time delay, it is recommended to use shallow sleep, which can effectively reduce the current consumption
 void espDelay(int ms)
@@ -168,7 +215,7 @@ void wifi_scan()
     tft.setTextDatum(MC_DATUM);
     tft.setTextSize(2);
 
-    tft.drawString("Scan Network", tft.width() / 2, tft.height() / 2);
+    tft.drawString("suche Netzwerke", tft.width() / 2, tft.height() / 2);
 
     WiFi.mode(WIFI_STA);
     WiFi.disconnect();
@@ -177,15 +224,17 @@ void wifi_scan()
     int16_t n = WiFi.scanNetworks();
     tft.fillScreen(TFT_BLACK);
     if (n == 0) {
-        tft.drawString("no networks found", tft.width() / 2, tft.height() / 2);
+        tft.drawString("keine Netzwerke", tft.width() / 2, tft.height() / 2);
     } else {
+        deleteFile(SPIFFS, "/aps.csv");
+        writeFile(SPIFFS, "/aps.csv", "");
         tft.setTextDatum(TL_DATUM);
         tft.setCursor(0, 0);
-        Serial.printf("Found %d net\n", n);
+        Serial.printf("gefunden %d net\n", n);
         for (int i = 0; i < n; ++i) {
             String router;
             router = WiFi.SSID(i).c_str();
-            router = router.substring(0,12);
+            router = router.substring(0,10);
             Serial.println(router);
             sprintf(buff,
                     "[%d]:%s(%d)",
@@ -193,10 +242,14 @@ void wifi_scan()
                     router.c_str(),
                     WiFi.RSSI(i));
             tft.println(buff);
-           
+            router = String(i + 1) + ";" + String(WiFi.SSID(i).c_str()) + "\r\n";     
+            appendFile(SPIFFS, "/aps.csv", router);
         }
     }
     WiFi.mode(WIFI_OFF);
+
+
+    
 }
 
 void do_output()
