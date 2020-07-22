@@ -22,12 +22,29 @@
 #define TFT_BL              4   // Display backlight control pin
 #define ADC_EN              14  //ADC_EN is the ADC detection enable port
 #define ADC_PIN             34
+
+
+#define B_UP                32
+#define B_DWN               33
+#define B_LFT               25
+#define B_RHT               26
+#define B_MID               27
+
 #define BUTTON_1            35
 #define BUTTON_2            0
 
 TFT_eSPI tft = TFT_eSPI(135, 240); // Invoke custom library
+
+Button2 btnUP(B_UP);
+Button2 btnDWN(B_DWN);
+Button2 btnLFT(B_LFT);
+Button2 btnRHT(B_RHT);
+Button2 btnMID(B_MID);
+
 Button2 btn1(BUTTON_1);
 Button2 btn2(BUTTON_2);
+
+int joystick;
 
 char buff[512];
 int vref = 1100;
@@ -40,7 +57,7 @@ void setup()
     Serial.println("Start");
 
     tft.init();
-    tft.setRotation(1);
+    tft.setRotation(3);
     tft.fillScreen(TFT_BLACK);
     tft.setTextColor(TFT_GREEN);
     tft.setCursor(0, 0);
@@ -56,10 +73,15 @@ void setup()
     espDelay(2000);
     
     display_text("Start",3,800);
-
+    
     if(!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)){
       display_text("SPIFFS Failed",3,800);
-      return;
+      espDelay(1000);
+    if(!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)){
+        display_text("SPIFFS Broken",3,800);            
+      } else {
+        display_text("SPIFFS now OK",3,800); 
+      }
     } else {
       display_text("SPIFFS OK",3,800);    
     }
@@ -98,12 +120,12 @@ void setup()
         Serial.println("Default Vref: 1100mV");
     }
   
-    output[0] = "ANEMOX 0"; 
-    output[1] = "ANEMOX 1"; 
-    output[2] = "ANEMOX 2"; 
-    output[3] = "ANEMOX 3";
-    output[4] = "ANEMOX 4"; 
-    output[5] = "ANEMOX 5"; 
+    output[0] = "ABCDEFGHIJKLMNOPQRS"; 
+    output[1] = "ZYXWVUTSRQPONMLKJIH"; 
+    output[2] = "abcdefghijklmnopqrs"; 
+    output[3] = "zyxwvutsrqponmlkjih"; 
+    output[4] = "1234567890!§$%&=?*+"; 
+    output[5] = "ABCDEFGHIJKLMNOPQRS"; 
     do_output();          
  
 }
@@ -200,10 +222,40 @@ void button_init()
         Serial.println("btn press wifi scan");
         wifi_scan();
     });
+    btnUP.setPressedHandler([](Button2 & b) {
+        btnCick = false;
+        Serial.println("btnUP");
+        joystick = 1;
+    });
+    btnDWN.setPressedHandler([](Button2 & b) {
+        btnCick = false;
+        Serial.println("btnDWN");
+        joystick = 2;
+    });
+    btnLFT.setPressedHandler([](Button2 & b) {
+        btnCick = false;
+        Serial.println("btnLFT");
+        joystick = 3;
+    });
+    btnRHT.setPressedHandler([](Button2 & b) {
+        btnCick = false;
+        Serial.println("btnRHT");
+        joystick = 4;
+    });  
+    btnMID.setPressedHandler([](Button2 & b) {
+        btnCick = false;
+        Serial.println("btnMID");
+        joystick = 5;
+    }); 
 }
 
 void button_loop()
 {
+    btnUP.loop();
+    btnDWN.loop();
+    btnLFT.loop();
+    btnRHT.loop();
+    btnMID.loop();
     btn1.loop();
     btn2.loop();
 }
